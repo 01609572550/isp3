@@ -237,6 +237,19 @@
     </div>
   </div>
 
+  <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-card confirm-card">
+      <div class="modal-heading">
+        <h3 id="confirmTitle">Confirm Action</h3>
+      </div>
+      <p id="confirmMessage" class="confirm-message"></p>
+      <div class="modal-actions">
+        <button type="button" id="confirmCancelBtn" class="secondary-btn">Cancel</button>
+        <button type="button" id="confirmOkBtn" class="danger-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" onerror="window.firebaseScriptFailed=true"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" onerror="window.firebaseScriptFailed=true"></script>

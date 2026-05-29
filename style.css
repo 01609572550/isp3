@@ -413,6 +413,8 @@ tr:hover td { background: rgba(15, 139, 141, 0.055); }
 }
 
 .receipt-card { width: min(100%, 460px); }
+.confirm-card { width: min(100%, 420px); }
+.confirm-message { color: var(--muted); line-height: 1.6; }
 .receipt-content {
   padding: 1rem;
   background: white;

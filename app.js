@@ -66,6 +66,11 @@
     paymentDuePreview: $("#paymentDuePreview"),
     receiptModal: $("#receiptModal"),
     receiptContent: $("#receiptContent"),
+    confirmModal: $("#confirmModal"),
+    confirmTitle: $("#confirmTitle"),
+    confirmMessage: $("#confirmMessage"),
+    confirmCancelBtn: $("#confirmCancelBtn"),
+    confirmOkBtn: $("#confirmOkBtn"),
     recentTransactions: $("#recentTransactions"),
     billingHistory: $("#billingHistory"),
     collectionSummary: $("#collectionSummary"),
@@ -470,6 +475,7 @@
         <td data-label="Actions">
           <div class="row-actions">
             <button class="secondary-btn" data-pay-id="${c.id}">Pay</button>
+            <button class="secondary-btn" data-invoice-id="${c.id}">Invoice</button>
             ${state.role === "admin" ? `<button class="secondary-btn" data-edit-id="${c.id}">Edit</button><button class="danger-btn" data-delete-id="${c.id}">Delete</button>` : ""}
           </div>
         </td>
@@ -637,6 +643,8 @@
   }
 
   function renderReceipt(tx) {
+    $("#receiptTitle").textContent = "Payment Receipt";
+    $("#printReceiptBtn").textContent = "Print Receipt";
     els.receiptContent.innerHTML = `
       <h2>ISP Billing Manager</h2>
       <p style="text-align:center;margin-bottom:1rem;">Payment Receipt</p>
@@ -652,10 +660,16 @@
     `;
   }
 
-  function deleteCustomer(customerId) {
+  async function deleteCustomer(customerId) {
     if (!requireAdmin()) return;
     const customer = state.customers.find((c) => c.id === customerId);
-    if (!customer || !confirm(`Delete ${customer.name}? This cannot be undone.`)) return;
+    if (!customer) return;
+    const confirmed = await askConfirm({
+      title: "Delete Customer",
+      message: `Delete ${customer.name}? This will remove the customer record from this app and cloud sync.`,
+      okText: "Delete"
+    });
+    if (!confirmed) return;
     state.customers = state.customers.filter((c) => c.id !== customerId);
     saveData();
     renderAll();
@@ -672,10 +686,18 @@
     toast("Account status updated.");
   }
 
-  function runMonthlyCycle() {
+  async function runMonthlyCycle() {
     if (!requireAdmin()) return;
     const currentMonth = monthKey();
-    if (state.cycles.some((cycle) => cycle.month === currentMonth) && !confirm("This month already has a cycle. Run it again?")) return;
+    const alreadyRun = state.cycles.some((cycle) => cycle.month === currentMonth);
+    const confirmed = await askConfirm({
+      title: "Run Monthly Cycle",
+      message: alreadyRun
+        ? "This month already has a billing cycle. Run it again and move current dues to previous due?"
+        : "Run monthly billing cycle now? Current dues will become previous due and paid amounts will reset.",
+      okText: "Run Cycle"
+    });
+    if (!confirmed) return;
     state.customers = state.customers.map((customer) => {
       const current = calculateCustomer(customer);
       return calculateCustomer({
@@ -689,6 +711,50 @@
     saveData();
     renderAll();
     toast("Monthly billing cycle completed.");
+  }
+
+  function renderInvoice(customerId) {
+    const customer = calculateCustomer(state.customers.find((c) => c.id === customerId) || {});
+    if (!customer.id) return;
+    $("#receiptTitle").textContent = "Customer Invoice";
+    $("#printReceiptBtn").textContent = "Print Invoice";
+    els.receiptContent.innerHTML = `
+      <h2>ISP Billing Manager</h2>
+      <p style="text-align:center;margin-bottom:1rem;">Customer Invoice</p>
+      <div class="receipt-row"><span>Date</span><strong>${formatDate(new Date().toISOString())}</strong></div>
+      <div class="receipt-row"><span>Customer</span><strong>${escapeHtml(customer.name)}</strong></div>
+      <div class="receipt-row"><span>Phone</span><strong>${escapeHtml(customer.phone)}</strong></div>
+      <div class="receipt-row"><span>Address</span><strong>${escapeHtml(customer.address)}</strong></div>
+      <div class="receipt-row"><span>Status</span><strong>${escapeHtml(customer.status)}</strong></div>
+      <div class="receipt-row"><span>Monthly Bill</span><strong>${money(customer.monthlyBill)}</strong></div>
+      <div class="receipt-row"><span>Discount</span><strong>${money(customer.discount)}</strong></div>
+      <div class="receipt-row"><span>Previous Due</span><strong>${money(customer.previousDue)}</strong></div>
+      <div class="receipt-row"><span>Total Bill</span><strong>${money(customer.totalBill)}</strong></div>
+      <div class="receipt-row"><span>Paid Amount</span><strong>${money(customer.paidAmount)}</strong></div>
+      <div class="receipt-row"><span>Current Due</span><strong>${money(customer.currentDue)}</strong></div>
+      <p style="text-align:center;margin:1.2rem 0 0;">Please pay your bill on time.</p>
+    `;
+    els.receiptModal.classList.remove("hidden");
+  }
+
+  function askConfirm({ title, message, okText }) {
+    return new Promise((resolve) => {
+      els.confirmTitle.textContent = title;
+      els.confirmMessage.textContent = message;
+      els.confirmOkBtn.textContent = okText || "Confirm";
+      els.confirmModal.classList.remove("hidden");
+
+      const cleanup = (result) => {
+        els.confirmModal.classList.add("hidden");
+        els.confirmOkBtn.removeEventListener("click", onOk);
+        els.confirmCancelBtn.removeEventListener("click", onCancel);
+        resolve(result);
+      };
+      const onOk = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      els.confirmOkBtn.addEventListener("click", onOk);
+      els.confirmCancelBtn.addEventListener("click", onCancel);
+    });
   }
 
   function exportCsv() {
@@ -784,12 +850,14 @@
     els.historySearch.addEventListener("input", (e) => { state.filters.history = e.target.value; renderBillingHistory(); });
     $$(".close-modal").forEach((button) => button.addEventListener("click", () => closeModal(button.dataset.close)));
     $$(".modal").forEach((modal) => modal.addEventListener("click", (event) => {
+      if (modal.id === "confirmModal") return;
       if (event.target === modal) closeModal(modal.id);
     }));
     els.customerTable.addEventListener("click", (event) => {
       const button = event.target.closest("button");
       if (!button) return;
       if (button.dataset.payId) openPaymentModal(button.dataset.payId);
+      if (button.dataset.invoiceId) renderInvoice(button.dataset.invoiceId);
       if (button.dataset.editId) openCustomerModal(button.dataset.editId);
       if (button.dataset.deleteId) deleteCustomer(button.dataset.deleteId);
     });
